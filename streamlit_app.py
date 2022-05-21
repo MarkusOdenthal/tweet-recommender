@@ -1,5 +1,5 @@
 import streamlit as st
-from supabase import create_client, Client
+from supabase import create_client
 from sentence_transformers import SentenceTransformer, util
 import torch
 import pandas as pd
@@ -25,15 +25,13 @@ embedder = SentenceTransformer('all-MiniLM-L6-v2')
 # Uses st.experimental_memo to only rerun when the query changes or after 10 min.
 @st.experimental_memo(ttl=3600)
 def run_query():
-    print("Load data ...")
-    response = supabase.table("tweets").select("*").execute()#.order('created_at', desc=True).limit(search).execute()
+    response = supabase.table("tweets").select("*").execute()
     df = pd.DataFrame(response.data)
 
     df_tweet = df[df["referenced_tweets_type"] == "tweet"].copy()
     df_tweet = df_tweet[~df_tweet['tweet_id'].duplicated()]
     corpus = df_tweet['text'].tolist()
     corpus_embeddings = embedder.encode(corpus, convert_to_tensor=True)
-    print("done")
     return df, df_tweet, corpus, corpus_embeddings
 
 
@@ -54,6 +52,7 @@ def main():
             tweet = df_tweet.iloc[int(idx)]
             tweet_id = tweet['tweet_id']
             tweet_like_count = tweet['like_count']
+            retweet_count = tweet['retweet_count']
             reply_tweet = df[df['referenced_tweets_id'] == tweet_id]
             if not reply_tweet.empty:
                 df_repl = reply_tweet['text'].iloc[0]
@@ -61,7 +60,7 @@ def main():
                 df_repl = ""
 
             st.write(search_result(f'{corpus[idx]}', replied=f"{df_repl}", score="Score: {:.4f}".format(score),
-                                   like_count=tweet_like_count), unsafe_allow_html=True)
+                                   like_count=tweet_like_count, retweet_count=retweet_count), unsafe_allow_html=True)
 
 
 if __name__ == '__main__':
