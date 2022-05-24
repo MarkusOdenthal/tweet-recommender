@@ -26,7 +26,11 @@ embedder = SentenceTransformer('all-MiniLM-L6-v2')
 # Uses st.experimental_memo to only rerun when the query changes or after 10 min.
 @st.experimental_memo(ttl=3600)
 def run_query(username: str):
-    response = supabase.table("tweets").select("*").eq('from_author_name', username).execute()
+    author_id = supabase.table("twitter_author_id_to_author_username"). \
+        select("*").eq('author_username', username). \
+        execute().\
+        data[0]['author_id']
+    response = supabase.table("tweets").select("*").eq('from_author_id', author_id).execute()
 
     df = pd.DataFrame(response.data)
 
