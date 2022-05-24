@@ -1,5 +1,6 @@
 import streamlit as st
 from supabase import create_client
+import httpx
 from sentence_transformers import SentenceTransformer, util
 import torch
 import pandas as pd
@@ -24,8 +25,9 @@ embedder = SentenceTransformer('all-MiniLM-L6-v2')
 # Perform query.
 # Uses st.experimental_memo to only rerun when the query changes or after 10 min.
 @st.experimental_memo(ttl=3600)
-def run_query():
-    response = supabase.table("tweets").select("*").execute()
+def run_query(username: str):
+    response = supabase.table("tweets").select("*").eq('from_author_name', username).execute()
+
     df = pd.DataFrame(response.data)
 
     df_tweet = df[df["referenced_tweets_type"] == "tweet"].copy()
@@ -36,10 +38,14 @@ def run_query():
 
 
 def main():
-    df, df_tweet, corpus, corpus_embeddings = run_query()
+    get_twitter_timeline_hook = st.secrets["get_twitter_timeline_hook"]
+    username = st.text_input('Enter Twitter Username:')
+
+    if username:
+        r = httpx.post(get_twitter_timeline_hook, data={'username': username})
+        df, df_tweet, corpus, corpus_embeddings = run_query(username)
 
     search = st.text_input('Enter search tweet:')
-
     if search:
         query_embedding = embedder.encode(search, convert_to_tensor=True)
 
