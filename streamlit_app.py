@@ -5,6 +5,7 @@ from sentence_transformers import SentenceTransformer, util
 import torch
 import pandas as pd
 from templates import search_result
+import collections
 
 st.set_page_config(layout="wide")
 
@@ -57,20 +58,48 @@ def main():
         top_results = torch.topk(cos_scores, k=10)
 
         # Print results.
-
+        hits = {}
         for score, idx in zip(top_results[0], top_results[1]):
+            hit = {}
             tweet = df_tweet.iloc[int(idx)]
             tweet_id = tweet['tweet_id']
             tweet_like_count = tweet['like_count']
-            retweet_count = tweet['retweet_count']
+            tweet_retweet_count = tweet['retweet_count']
             reply_tweet = df[df['referenced_tweets_id'] == tweet_id]
             if not reply_tweet.empty:
-                df_repl = reply_tweet['text'].iloc[0]
+                first_reply = reply_tweet.iloc[0]
+                text_repl = first_reply['text']
+                text_repl = " ".join(filter(lambda x: x[0] != '@', text_repl.split()))
+                corpus_reply_embeddings = embedder.encode(text_repl, convert_to_tensor=True)
+                reply_scores = float(util.cos_sim(query_embedding, corpus_reply_embeddings)[0])
+                reply_like_count = first_reply['like_count']
+                reply_retweet_count = first_reply['retweet_count']
             else:
-                df_repl = ""
+                text_repl = ""
+            score_rank = 0.7 * score + 0.3 * reply_scores
+            score_rank = float(score_rank)
 
-            st.write(search_result(f'{corpus[idx]}', replied=f"{df_repl}", score="Score: {:.4f}".format(score),
-                                   like_count=tweet_like_count, retweet_count=retweet_count), unsafe_allow_html=True)
+            hit['tweet'] = corpus[idx]
+            hit['tweet_score'] = "Score: {:.2f}".format(score)
+            hit['tweet_like_count'] = tweet_like_count
+            hit['tweet_retweet_count'] = tweet_retweet_count
+
+            hit['text_repl'] = text_repl
+            hit['reply_score'] = "Score: {:.2f}".format(reply_scores)
+            hit['reply_like_count'] = reply_like_count
+            hit['reply_retweet_count'] = reply_retweet_count
+            hit['score_rank'] = "Score: {:.2f}".format(score_rank)
+
+            hits[score_rank] = hit
+
+        # do reranking of the results
+        rerank_hits = collections.OrderedDict(sorted(hits.items(), reverse=True))
+        for rerank_score, hit in rerank_hits.items():
+            st.write(search_result(f"{hit['tweet']}", replied=f"{hit['text_repl']}", score=hit['tweet_score'],
+                                   like_count=hit['tweet_like_count'], retweet_count=hit['tweet_retweet_count'],
+                                   reply_scores=hit['reply_score'],
+                                   reply_like_count=hit['reply_like_count'], reply_retweet_count=hit['reply_retweet_count'],
+                                   score_rank=hit['score_rank']), unsafe_allow_html=True)
 
 
 if __name__ == '__main__':
