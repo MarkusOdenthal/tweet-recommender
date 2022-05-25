@@ -26,11 +26,7 @@ embedder = SentenceTransformer('all-MiniLM-L6-v2')
 # Perform query.
 # Uses st.experimental_memo to only rerun when the query changes or after 10 min.
 @st.experimental_memo(ttl=3600)
-def run_query(username: str):
-    author_id = supabase.table("twitter_author_id_to_author_username"). \
-        select("*").eq('author_username', username). \
-        execute().\
-        data[0]['author_id']
+def run_query(author_id: str):
     response = supabase.table("tweets").select("*").eq('from_author_id', author_id).execute()
 
     df = pd.DataFrame(response.data)
@@ -42,13 +38,32 @@ def run_query(username: str):
     return df, df_tweet, corpus, corpus_embeddings
 
 
+def get_twitter_author_id(username: str) -> str:
+    try:
+        author_id = supabase.table("twitter_author_id_to_author_username"). \
+            select("*").eq('author_username', username). \
+            execute(). \
+            data[0]['author_id']
+    except:
+        get_twitter_user_lookup = st.secrets["get_twitter_user_lookup"]
+        r = httpx.post(get_twitter_user_lookup, data={'username': username})
+        author_id = supabase.table("twitter_author_id_to_author_username"). \
+            select("*").eq('author_username', username). \
+            execute(). \
+            data[0]['author_id']
+    return author_id
+
+
 def main():
     get_twitter_timeline_hook = st.secrets["get_twitter_timeline_hook"]
     username = st.text_input('Enter Twitter Username:')
 
     if username:
+        print('Start usercheck')
+        author_id = get_twitter_author_id(username)
+        print('Usercheck done')
         r = httpx.post(get_twitter_timeline_hook, data={'username': username})
-        df, df_tweet, corpus, corpus_embeddings = run_query(username)
+        df, df_tweet, corpus, corpus_embeddings = run_query(author_id)
 
     search = st.text_input('Enter search tweet:')
     if search:
