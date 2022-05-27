@@ -29,8 +29,13 @@ def init_connection():
 
 
 supabase = init_connection()
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
+@st.experimental_singleton
+def load_model():
+    embedder = SentenceTransformer("all-MiniLM-L6-v2")
+    return embedder
+
+embedder = load_model()
 
 # Perform query.
 # Uses st.experimental_memo to only rerun when the query changes or after 10 min.
