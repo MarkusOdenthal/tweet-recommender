@@ -1,17 +1,18 @@
 def search_result(
-        tweet_id: str,
-        tweet: str,
-        replied_id: str,
-        replied: str,
-        score: int,
-        like_count: int,
-        retweet_count: int,
-        author_name: str,
-        reply_scores=0.0,
-        reply_like_count=0,
-        reply_retweet_count=0,
-        score_rank=0.0) -> str:
-    """ HTML scripts to display search results. """
+    tweet_id: str,
+    tweet: str,
+    replied_id: str,
+    replied: str,
+    score: int,
+    like_count: int,
+    retweet_count: int,
+    author_name: str,
+    reply_scores=0.0,
+    reply_like_count=0,
+    reply_retweet_count=0,
+    score_rank=0.0,
+) -> str:
+    """HTML scripts to display search results."""
     return f"""
         <div style="padding: 20px">
             <div style="box-shadow: rgba(0, 0, 0, 0.05) 0px 0px 0px 1px;padding: 20px;background: #d9e6ff; border-radius: 10px;">
