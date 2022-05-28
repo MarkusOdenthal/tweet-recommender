@@ -3,6 +3,8 @@ Main module and starting point for streamlit of project tweet recommender.
 """
 
 import collections
+import time
+
 from sentence_transformers import SentenceTransformer, util
 import streamlit as st
 from supabase import create_client
@@ -79,6 +81,7 @@ def get_twitter_author_id(username: str) -> str:
             .execute()
             .data[0]["author_id"]
         )
+        new_user = False
     except:
         get_twitter_user_lookup = st.secrets["get_twitter_user_lookup"]
         r = httpx.post(get_twitter_user_lookup, data={"username": username})
@@ -89,7 +92,8 @@ def get_twitter_author_id(username: str) -> str:
             .execute()
             .data[0]["author_id"]
         )
-    return author_id
+        new_user = True
+    return author_id, new_user
 
 
 st.markdown("###### Made with :heart: by @MarkusOdenthal | [![Follow]("
@@ -134,7 +138,7 @@ def main():
             username = st.text_input("Enter Twitter Username:", help="Please enter here you Twitter Username without the @")
 
             if username:
-                author_id = get_twitter_author_id(username)
+                author_id, new_user = get_twitter_author_id(username)
                 value = query_tweet_metric(author_id)
             else:
                 value = 0
@@ -153,84 +157,95 @@ def main():
             get_twitter_timeline_hook = st.secrets["get_twitter_timeline_hook"]
 
             if username:
-                _ = httpx.post(get_twitter_timeline_hook, data={"username": username})
-                df, df_tweet, corpus, corpus_embeddings = run_query(author_id)
+                with st.spinner("Get latest tweets from timeline ..."):
+                    _ = httpx.post(get_twitter_timeline_hook, data={"username": username})
+                if new_user:
+                    with st.spinner("This user is not in the database to fetch the data need sometime"):
+                        my_bar = st.progress(0)
+                        for percent_complete in range(120):
+                            time.sleep(1)
+                            my_bar.progress(percent_complete + 1)
+                with st.spinner("AI read you tweets 🤖 ..."):
+                    df, df_tweet, corpus, corpus_embeddings = run_query(author_id)
 
             search = st.text_input("Enter search tweet:")
             st.form_submit_button('Search')
             if search:
-                query_embedding = embedder.encode(search, convert_to_tensor=True)
+                with st.spinner("AI is searching 🤖 ..."):
+                    query_embedding = embedder.encode(search, convert_to_tensor=True)
 
-                cos_scores = util.cos_sim(query_embedding, corpus_embeddings)[0]
-                top_results = torch.topk(cos_scores, k=10)
+                    cos_scores = util.cos_sim(query_embedding, corpus_embeddings)[0]
+                    top_results = torch.topk(cos_scores, k=10)
 
-                # Print results.
-                hits = {}
-                tweet_score_weights = 1 - replied_weighting/100
-                replied_score_weights = replied_weighting/100
-                for score, idx in zip(top_results[0], top_results[1]):
-                    hit = {}
-                    tweet = df_tweet.iloc[int(idx)]
-                    tweet_id = tweet["tweet_id"]
-                    author_name = tweet["author_name"]
-                    tweet_like_count = tweet["like_count"]
-                    tweet_retweet_count = tweet["retweet_count"]
-                    reply_tweet = df[df["referenced_tweets_id"] == tweet_id]
-                    if not reply_tweet.empty:
-                        first_reply = reply_tweet.iloc[0]
-                        text_repl = first_reply["text"]
-                        replied_id = first_reply["tweet_id"]
-                        text_repl = " ".join(filter(lambda x: x[0] != "@", text_repl.split()))
-                        corpus_reply_embeddings = embedder.encode(
-                            text_repl, convert_to_tensor=True
+                    # Print results.
+                    hits = {}
+                    tweet_score_weights = 1 - replied_weighting/100
+                    replied_score_weights = replied_weighting/100
+                    for score, idx in zip(top_results[0], top_results[1]):
+                        hit = {}
+                        tweet = df_tweet.iloc[int(idx)]
+                        tweet_id = tweet["tweet_id"]
+                        author_name = tweet["author_name"]
+                        tweet_like_count = tweet["like_count"]
+                        tweet_retweet_count = tweet["retweet_count"]
+                        reply_tweet = df[df["referenced_tweets_id"] == tweet_id]
+                        reply_tweet = reply_tweet[reply_tweet["author_username"] == username]
+                        if not reply_tweet.empty:
+                            first_reply = reply_tweet.iloc[0]
+                            text_repl = first_reply["text"]
+                            replied_id = first_reply["tweet_id"]
+                            text_repl = " ".join(filter(lambda x: x[0] != "@", text_repl.split()))
+                            corpus_reply_embeddings = embedder.encode(
+                                text_repl, convert_to_tensor=True
+                            )
+                            reply_scores = float(
+                                util.cos_sim(query_embedding, corpus_reply_embeddings)[0]
+                            )
+                            reply_like_count = first_reply["like_count"]
+                            reply_retweet_count = first_reply["retweet_count"]
+                            score_rank = tweet_score_weights * score + replied_score_weights * reply_scores
+                        else:
+                            text_repl = ""
+                            score_rank = tweet_score_weights
+
+                        score_rank = float(score_rank)
+
+                        hit["tweet_id"] = tweet_id
+                        hit["tweet"] = corpus[idx]
+                        hit["tweet_score"] = "Score: {:.2f}".format(score)
+                        hit["author_name"] = author_name
+                        hit["tweet_like_count"] = tweet_like_count
+                        hit["tweet_retweet_count"] = tweet_retweet_count
+
+                        hit["replied_id"] = replied_id
+                        hit["text_repl"] = text_repl
+                        hit["reply_score"] = "Score: {:.2f}".format(reply_scores)
+                        hit["reply_like_count"] = reply_like_count
+                        hit["reply_retweet_count"] = reply_retweet_count
+                        hit["score_rank"] = "{:.2f}".format(score_rank)
+
+                        hits[score_rank] = hit
+
+                    # do reranking of the results
+                    rerank_hits = collections.OrderedDict(sorted(hits.items(), reverse=True))
+                    for rerank_score, hit in rerank_hits.items():
+                        st.write(
+                            search_result(
+                                f"{hit['tweet_id']}",
+                                f"{hit['tweet']}",
+                                replied_id=f"{hit['replied_id']}",
+                                replied=f"{hit['text_repl']}",
+                                score=hit["tweet_score"],
+                                like_count=hit["tweet_like_count"],
+                                retweet_count=hit["tweet_retweet_count"],
+                                reply_scores=hit["reply_score"],
+                                reply_like_count=hit["reply_like_count"],
+                                reply_retweet_count=hit["reply_retweet_count"],
+                                score_rank=hit["score_rank"],
+                                author_name=hit["author_name"],
+                            ),
+                            unsafe_allow_html=True,
                         )
-                        reply_scores = float(
-                            util.cos_sim(query_embedding, corpus_reply_embeddings)[0]
-                        )
-                        reply_like_count = first_reply["like_count"]
-                        reply_retweet_count = first_reply["retweet_count"]
-                    else:
-                        text_repl = ""
-
-                    score_rank = tweet_score_weights * score + replied_score_weights * reply_scores
-                    score_rank = float(score_rank)
-
-                    hit["tweet_id"] = tweet_id
-                    hit["tweet"] = corpus[idx]
-                    hit["tweet_score"] = "Score: {:.2f}".format(score)
-                    hit["author_name"] = author_name
-                    hit["tweet_like_count"] = tweet_like_count
-                    hit["tweet_retweet_count"] = tweet_retweet_count
-
-                    hit["replied_id"] = replied_id
-                    hit["text_repl"] = text_repl
-                    hit["reply_score"] = "Score: {:.2f}".format(reply_scores)
-                    hit["reply_like_count"] = reply_like_count
-                    hit["reply_retweet_count"] = reply_retweet_count
-                    hit["score_rank"] = "{:.2f}".format(score_rank)
-
-                    hits[score_rank] = hit
-
-                # do reranking of the results
-                rerank_hits = collections.OrderedDict(sorted(hits.items(), reverse=True))
-                for rerank_score, hit in rerank_hits.items():
-                    st.write(
-                        search_result(
-                            f"{hit['tweet_id']}",
-                            f"{hit['tweet']}",
-                            replied_id=f"{hit['replied_id']}",
-                            replied=f"{hit['text_repl']}",
-                            score=hit["tweet_score"],
-                            like_count=hit["tweet_like_count"],
-                            retweet_count=hit["tweet_retweet_count"],
-                            reply_scores=hit["reply_score"],
-                            reply_like_count=hit["reply_like_count"],
-                            reply_retweet_count=hit["reply_retweet_count"],
-                            score_rank=hit["score_rank"],
-                            author_name=hit["author_name"],
-                        ),
-                        unsafe_allow_html=True,
-                    )
 
 
 if __name__ == "__main__":
