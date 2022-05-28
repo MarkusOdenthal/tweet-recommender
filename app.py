@@ -249,7 +249,4 @@ def main():
 
 
 if __name__ == "__main__":
-    query_tweet_metric('753027473193873408')
-    # get_twitter_author_id('test')
-    # run_query('MarkusOdenthal')
     main()
