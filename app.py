@@ -103,11 +103,11 @@ with st.expander("ℹ️ About this app", expanded=True):
 
     st.write(
         """     
--   The *Tweet Engage Recommender MVP* app is an easy-to-use interface built in Streamlit it should give you an idea for the future product
--   It can be tough to keep up with conversation on Twitter, but Tweet Recommender is here to help you out
+-   The *Tweet Engage Recommender MVP* app is an easy-to-use interface built in Streamlit. It should give you an idea for the future product.
+-   It can be tough to keep up with a conversation on Twitter, but Tweet Recommender is here to help you out
 -   It's the Semantic Search Engine for your past tweets, making it easy to find similar tweets and join in the discussion. Never be out of the loop again!
--   The tool is still in Beta. Any issues, feedback or suggestions please DM me on Twitter: [@MarkusOdenthal](https://twitter.com/MarkusOdenthal)
--   This app is free. If it's useful to you, you can [buy me a ☕](https://www.buymeacoffee.com/markusodenA) to support my work. 🙏
+-   The tool is still in Beta. Any issues, feedback, or suggestions, please DM me on Twitter: [@MarkusOdenthal](https://twitter.com/MarkusOdenthal)
+-   This app is free. If it's helpful to you, you can [buy me a ☕](https://www.buymeacoffee.com/markusodenA) to support my work. 🙏
 	    """
     )
 
@@ -117,10 +117,11 @@ with st.expander("🔆 Coming soon!", expanded=False):
 
     st.write(
         """  
--   Add more embedding models.
--   Add more options from the KeyBERT API.
--   Allow for larger documents to be reviewed (currently limited to 500 words).
--   If deemed cost-effective, I may add search volume data with each retrieved keyword.
+-   Fix bugs
+-   Automate User Onboarding
+-   Optimize semantic search for replies
+-   Show more than 10 results
+-   Make app faster
 	    """
     )
 
@@ -136,9 +137,11 @@ def main():
         ce, c1, ce, c2, c3 = st.columns([0.07, 1, 0.07, 5, 0.07])
         with c1:
             username = st.text_input("Enter Twitter Username:", help="Please enter here you Twitter Username without the @")
+            new_user = True
 
             if username:
                 author_id, new_user = get_twitter_author_id(username)
+            if not new_user:
                 value = query_tweet_metric(author_id)
             else:
                 value = 0
@@ -162,9 +165,9 @@ def main():
                 if new_user:
                     with st.spinner("This user is not in the database to fetch the data need sometime"):
                         my_bar = st.progress(0)
-                        for percent_complete in range(120):
+                        for percent_complete in range(100):
                             time.sleep(1)
-                            my_bar.progress(percent_complete + 1)
+                            my_bar.progress(percent_complete)
                 with st.spinner("AI read you tweets 🤖 ..."):
                     df, df_tweet, corpus, corpus_embeddings = run_query(author_id)
 
@@ -189,6 +192,7 @@ def main():
                         tweet_like_count = tweet["like_count"]
                         tweet_retweet_count = tweet["retweet_count"]
                         reply_tweet = df[df["referenced_tweets_id"] == tweet_id]
+                        reply_tweet = reply_tweet[reply_tweet['referenced_tweets_type'] == 'replied_to']
                         reply_tweet = reply_tweet[reply_tweet["author_username"] == username]
                         if not reply_tweet.empty:
                             first_reply = reply_tweet.iloc[0]
@@ -206,7 +210,12 @@ def main():
                             score_rank = tweet_score_weights * score + replied_score_weights * reply_scores
                         else:
                             text_repl = ""
-                            score_rank = tweet_score_weights
+                            score_rank = score
+                            replied_id = 0
+                            reply_scores = 0
+                            reply_like_count = 0
+                            reply_retweet_count = 0
+
 
                         score_rank = float(score_rank)
 
