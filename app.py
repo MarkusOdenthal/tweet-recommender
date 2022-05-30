@@ -106,6 +106,7 @@ with st.expander("ℹ️ About this app", expanded=True):
 -   The *Tweet Engage Recommender MVP* app is an easy-to-use interface built in Streamlit. It should give you an idea for the future product.
 -   It can be tough to keep up with a conversation on Twitter, but Tweet Recommender is here to help you out
 -   It's the Semantic Search Engine for your past tweets, making it easy to find similar tweets and join in the discussion. Never be out of the loop again!
+-   You can retrieve the most recent 3200 Tweets from your timeline.
 -   The tool is still in Beta. Any issues, feedback, or suggestions, please DM me on Twitter: [@MarkusOdenthal](https://twitter.com/MarkusOdenthal)
 -   This app is free. If it's helpful to you, you can [buy me a ☕](https://www.buymeacoffee.com/markusodenA) to support my work. 🙏
 	    """
@@ -117,6 +118,7 @@ with st.expander("🔆 Coming soon!", expanded=False):
 
     st.write(
         """  
+-   Add likes, replies, etc to the ranking formula
 -   Fix bugs
 -   Automate User Onboarding
 -   Optimize semantic search for replies
