@@ -156,7 +156,7 @@ def main():
                 min_value=0,
                 max_value=30,
                 value=6,
-                help="You can choose the number of keywords/keyphrases to display. Between 1 and 30, default number is 10.",
+                help="",
             )
         with c2:
             get_twitter_timeline_hook = st.secrets["get_twitter_timeline_hook"]
@@ -165,7 +165,7 @@ def main():
                 with st.spinner("Get latest tweets from timeline ..."):
                     _ = httpx.post(get_twitter_timeline_hook, data={"username": username})
                 if new_user:
-                    with st.spinner("This user is not in the database to fetch the data need sometime"):
+                    with st.spinner("This user is not in the database. To fetch the data need some time."):
                         my_bar = st.progress(0)
                         for percent_complete in range(100):
                             time.sleep(1)
