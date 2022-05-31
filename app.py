@@ -139,6 +139,7 @@ def main():
         ce, c1, ce, c2, c3 = st.columns([0.07, 1, 0.07, 5, 0.07])
         with c1:
             username = st.text_input("Enter Twitter Username:", help="Please enter here you Twitter Username without the @")
+            username = username.strip()
             new_user = True
 
             if username:
