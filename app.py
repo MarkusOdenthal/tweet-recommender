@@ -84,7 +84,7 @@ def get_twitter_author_id(username: str) -> str:
         new_user = False
     except:
         get_twitter_user_lookup = st.secrets["get_twitter_user_lookup"]
-        r = httpx.post(get_twitter_user_lookup, data={"username": username})
+        r = httpx.post(get_twitter_user_lookup, data={"username": username}, timeout=None)
         author_id = (
             supabase.table("twitter_author_id_to_author_username")
             .select("*")
@@ -163,7 +163,7 @@ def main():
 
             if username:
                 with st.spinner("Get latest tweets from timeline ..."):
-                    _ = httpx.post(get_twitter_timeline_hook, data={"username": username})
+                    _ = httpx.post(get_twitter_timeline_hook, data={"username": username}, timeout=None)
                 if new_user:
                     with st.spinner("This user is not in the database. To fetch the data need some time."):
                         my_bar = st.progress(0)
